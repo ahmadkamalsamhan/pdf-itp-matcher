@@ -1,5 +1,5 @@
 # ----------------------
-# app.py - PDF to ITP Activity Matcher (Streamlit + Google Drive)
+# app.py - PDF to ITP Activity Matcher (Google Drive direct folder access + progress bar)
 # ----------------------
 
 import streamlit as st
@@ -124,13 +124,17 @@ def match_title_and_revision(pdf_name, work_df):
 # ----------------------
 # Streamlit UI
 # ----------------------
-st.title("PDF to ITP Activity Matcher (Google Drive)")
+st.title("PDF to ITP Activity Matcher (Direct Google Drive Folder Access)")
 
 work_file = st.file_uploader("Upload Work Inspection Excel (Document No, Title, Rev)", type=["xlsx"])
 itp_file = st.file_uploader("Upload ITP Activities Excel (ITP Number & Activity)", type=["xlsx"])
-drive_folder_id = st.text_input("Enter Google Drive Folder ID with PDFs:")
 
-if work_file and itp_file and drive_folder_id:
+# ----------------------
+# Direct Google Drive folder ID (no user input)
+# ----------------------
+DRIVE_FOLDER_ID = "1_Y2VS45p9b-qLMJY15FQviIY_nKC_Z4B"  # Replace with your folder ID
+
+if work_file and itp_file:
 
     # Load Excel files
     work_df = pd.read_excel(work_file)
@@ -144,7 +148,7 @@ if work_file and itp_file and drive_folder_id:
     drive = GoogleDrive(gauth)
 
     # List PDFs in Drive folder
-    file_list = drive.ListFile({'q': f"'{drive_folder_id}' in parents and trashed=false"}).GetList()
+    file_list = drive.ListFile({'q': f"'{DRIVE_FOLDER_ID}' in parents and trashed=false"}).GetList()
     pdf_paths = []
     temp_dir = tempfile.mkdtemp()
     for f in file_list:
@@ -156,12 +160,12 @@ if work_file and itp_file and drive_folder_id:
     st.write(f"Found {len(pdf_paths)} PDFs in Google Drive folder. Processing...")
 
     # ----------------------
-    # Process PDFs
+    # Process PDFs with Streamlit progress bar
     # ----------------------
     final_rows = []
     matched_activities_set = set()
+    progress_bar = st.progress(0)
 
-    progress = st.progress(0)
     for idx, pdf_file in enumerate(pdf_paths):
         extracted_itp = extract_itp_from_pdf(pdf_file)
         matched_title, matched_rev = match_title_and_revision(pdf_file, work_df)
@@ -189,7 +193,7 @@ if work_file and itp_file and drive_folder_id:
         if best_itp_number and matched_activity:
             matched_activities_set.add((best_itp_number, matched_activity))
 
-        progress.progress((idx + 1) / len(pdf_paths))
+        progress_bar.progress((idx + 1) / len(pdf_paths))
 
     # ----------------------
     # Download buttons
@@ -209,4 +213,3 @@ if work_file and itp_file and drive_folder_id:
 
     unmatched_df = pd.DataFrame(unmatched_rows)
     st.download_button("Download Unmatched Activities", unmatched_df.to_excel(index=False), file_name="unmatched_activities.xlsx")
-
